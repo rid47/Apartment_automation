@@ -1,0 +1,379 @@
+//-----------------------Including library------------------------------//
+
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
+#include<Ticker.h>
+
+int Version=1;
+
+
+
+//--------------------ISR for implementing watchdog-------------------//
+
+
+Ticker secondTick;
+volatile int watchdogCount=0;
+void ISRwatchdog(){
+
+
+  watchdogCount++;
+  if(watchdogCount==60){
+
+
+    Serial.println();
+    Serial.print("The watch dog bites......");
+    //ESP.reset();
+    ESP.restart();
+  }
+}
+
+
+//-----------------Defining required pins---------------------------//
+
+#define lockPin 13             // NODE MCU PIN D7
+#define acPin 5                // NODE MCU PIN D1
+#define lightPin 4             // NODE MCU PIN D2
+#define pirPin1 14             // NODE MCU PIN D5
+#define pirPin2 12             // NODE MCU PIN D6
+#define sonarPin 15            //NODE MCU PIN D8
+#define lightPin2 0            //NODE MCU PIN D3
+#define lightPin3 2            //NODE MCU PIN D4
+
+
+
+
+//-------------------Defining required variables---------------------//
+
+String lightStatus="0";
+String lockStatus="0";
+String acStatus="0";
+String pirStatus="0";
+String sonarStatus="0";
+
+String Status="";
+String Status2="";
+
+char msg[6];
+char msg2[4]; 
+int pirValue1=0;
+int pirValue2=0;
+int sonarValue=0;
+
+//-------------------------------WiFi Credentials--------------------//
+
+
+const char* ssid = "DataSoft_WiFi";
+const char* password = "support123";
+//const char* mqtt_server = "broker.mqtt-dashboard.com";
+const char* mqtt_server = "182.163.112.207";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+
+
+//---------------------------------------------setup-------------------//
+
+
+void setup() {
+  // put your setup code here, to run once:
+  
+
+Serial.begin(115200);
+secondTick.attach(1,ISRwatchdog);
+
+pinMode(lockPin,OUTPUT);
+pinMode(acPin,OUTPUT);
+pinMode(lightPin,OUTPUT);
+pinMode(lightPin2,OUTPUT);
+pinMode(lightPin3,OUTPUT);
+pinMode(pirPin1,INPUT);
+pinMode(pirPin2,INPUT);
+pinMode(sonarPin,INPUT);
+
+digitalWrite(lockPin,LOW);
+digitalWrite(acPin,LOW);
+digitalWrite(lightPin,HIGH);
+digitalWrite(lightPin2,HIGH);
+digitalWrite(lightPin3,HIGH);
+
+
+setup_wifi();
+client.setServer(mqtt_server, 1883);
+client.setCallback(callback);
+
+
+}
+
+
+//-------------------------------------------loop-----------------------------------------//
+
+void loop() 
+{
+
+  watchdogCount=0;
+
+ if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+  
+ //---------------------Updating device status---------------------------------------------//
+
+    if(Version==1)
+    {
+      Serial.println("Firmware v15.0");
+      Version++;
+    }
+    
+    Status="";
+    Status=Status+lockStatus+acStatus+lightStatus;
+    Status.toCharArray(msg,6);
+    //Serial.print("Device Status:");
+    //Serial.println(Status);
+
+    
+    Status2="";
+    Status2=Status2+pirStatus+sonarStatus;
+    Status2.toCharArray(msg2,4);
+    delay(250);
+  
+  
+  
+  
+  
+  
+  pirValue1=digitalRead(pirPin1);
+  pirValue2=digitalRead(pirPin2);
+  sonarValue=digitalRead(sonarPin);
+  delay(100);
+  Serial.print("pirValue1:");
+  Serial.println(pirValue1);
+  Serial.print("pirValue2:");
+  Serial.println(pirValue2);
+  Serial.print("sonarValue:");
+  Serial.println(sonarValue);
+  
+      
+  if(pirValue1== HIGH || pirValue2== HIGH || sonarValue== HIGH)
+  {
+        pirStatus="1";
+        sonarStatus="1";
+        
+        digitalWrite(lightPin2,LOW);//Light on
+        digitalWrite(lightPin3,LOW);
+        digitalWrite(lightPin,LOW);
+        lightStatus="1";
+        Serial.println("light on");
+    
+  } 
+    
+  
+  if(pirValue1==LOW && pirValue2==LOW && sonarValue==LOW)
+
+  {
+
+        pirStatus="0";
+        sonarStatus="0";            
+
+
+        digitalWrite(lightPin2,HIGH);//Light off
+        digitalWrite(lightPin3,HIGH);
+        digitalWrite(lightPin,HIGH);
+        lightStatus="0";
+        Serial.println("light off");
+           
+        
+    }
+        }
+  
+
+//------------------------------------------setup_wifi-----------------------------------------//
+
+void setup_wifi() {
+   delay(100);
+  // We start by connecting to a WiFi network
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) 
+    {
+      delay(500);
+      Serial.print(".");
+    }
+  randomSeed(micros());
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+
+//-------------------------------------reconnect()---------------------------------------------//
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) 
+  {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "ESP32-";
+    clientId += String(random(0xffff), HEX);
+    // Attempt to connect
+    //if your MQTT broker has clientID,username and password
+    //please change following line to    if (client.connect(clientId,userName,passWord))
+    if (client.connect(clientId.c_str()))
+    {
+      Serial.println("connected");
+     //once connected to MQTT broker, subscribe command if any
+
+//---------------------------------------Subscribing to required topics-----------------------//
+
+     
+      client.subscribe("apartment/user_input");
+      Serial.println("Subsribed to topic: apartment/user_input");
+      client.subscribe("apartment/login");
+      Serial.println("Subsribed to topic: apartment/login");
+      client.subscribe("apartment/reset");
+      Serial.println("Subsribed to topic: apartment/reset");
+      
+      
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 6 seconds before retrying
+      delay(5000);
+    }
+  }
+} //end reconnect()
+
+
+//---------------------------Callback funtion-------------------------------------//
+
+void callback(char* topic, byte* payload, unsigned int length) {
+ 
+  Serial.print("Message arrived in topic: ");
+  Serial.println(topic);
+  
+//------------------------user_input for manual load control-----------------//
+
+
+  if(strcmp(topic, "apartment/user_input") == 0){
+  Serial.print("Message:");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+    char data=payload[i];
+    
+  
+    if (data=='0')
+    {
+      digitalWrite(lockPin,LOW);//UNLOCKED
+      Serial.println("Door unlocked");
+      lockStatus="0";
+      }
+      if (data=='1')
+    {
+      digitalWrite(lockPin,HIGH);//Locked
+      Serial.println("Door locked");
+      lockStatus="1";
+      }
+      if (data=='2')
+    {
+      digitalWrite(acPin,LOW);//AC off
+      Serial.println("AC Off");
+      acStatus="0";
+      
+      }
+      if (data=='3')
+    {
+      digitalWrite(acPin,HIGH);//ac on
+      Serial.println("AC ON");
+      acStatus="1";
+      }
+      if (data=='5')
+    {
+      digitalWrite(lightPin,HIGH);//LIGHT OFF
+      digitalWrite(lightPin2,HIGH);
+      digitalWrite(lightPin3,HIGH);
+      //digitalWrite(ledPin,LOW);
+      Serial.println("Light OFF");
+      //Serial.println("LED ON");
+      
+      lightStatus="0";
+      //ledStatus="1";
+      Serial.print("lightStatus:");
+      Serial.println(lightStatus);
+      //Serial.print("ledStatus:");
+      //Serial.println(ledStatus);
+
+      
+      }
+      if (data=='4')
+    {
+      digitalWrite(lightPin,LOW);//LIGHT ON
+      digitalWrite(lightPin2,LOW);
+      digitalWrite(lightPin3,LOW);
+      Serial.print("Light ON");
+      //digitalWrite(ledPin,HIGH);
+      //Serial.println("LED OFF");
+      lightStatus="1";
+      //ledStatus="0";
+      Serial.print("lightStatus:");
+      Serial.println(lightStatus);
+      //Serial.print("ledStatus:");
+      //Serial.println(ledStatus);
+
+
+      
+      }
+       
+  }}
+
+
+//-------------------------Publishing device status upon request from user app--------------------------//
+
+
+  if(strcmp(topic, "apartment/login") == 0){
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+    char data2=payload[i];
+    
+  
+    if (data2=='1')
+    {
+
+      client.publish("apartment/status",msg);
+      Serial.print("Published Status:");
+      Serial.println(msg);
+
+      client.publish("apartment/sensorStatus",msg2);
+      Serial.print("Published sensor Status:");
+      Serial.println(msg2);
+    }
+            
+      }
+
+  }
+
+//----------------------Restarting the board from Engineer's end----------------------------//
+
+
+
+  if(strcmp(topic, "apartment/reset") == 0){
+  Serial.print("Message:");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+    char data3=payload[i];
+    
+  
+    if (data3=='1')
+    {
+      
+      Serial.println("Resetting Device.........");
+       ESP.restart();
+      }}}
+       
+
+  
+}
