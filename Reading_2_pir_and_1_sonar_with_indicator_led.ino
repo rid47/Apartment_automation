@@ -35,7 +35,7 @@ int distance;
 
 //-----------------Defining required pins---------------------------//
              
-#define pirPin1 2              
+#define pirPin1  2              
 #define pirPin2 3
 #define pirIndicator1 4
 #define pirIndicator2 5
@@ -56,6 +56,10 @@ pinMode(pirIndicator1,OUTPUT);
 pinMode(pirIndicator2,OUTPUT);
 pinMode(trigPin,OUTPUT);
 pinMode(echoPin,INPUT);
+pinMode(sonarIndicator,OUTPUT);
+digitalWrite(pirIndicator1,LOW);
+digitalWrite(pirIndicator2,LOW);
+digitalWrite(sonarIndicator,LOW);
 
 //give the sensor some time to calibrate
 Serial.print("calibrating sensor ");
@@ -80,11 +84,11 @@ void loop()
 
     
   pirValue1=digitalRead(pirPin1);
-  pirValue1=digitalRead(pirPin2);
+  pirValue2=digitalRead(pirPin2);
   delay(100);
   Serial.print("pirValue1:");
   Serial.println(pirValue1);
-  Serial.print("pirValue2");
+  Serial.print("pirValue2:");
   Serial.println(pirValue2);
 
       
@@ -230,7 +234,7 @@ else
   Serial.println("NO objcet within distanceThreshold");
 }
 
-          
+//delay(1000);          
 }
   
   
