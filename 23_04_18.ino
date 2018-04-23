@@ -258,19 +258,20 @@ void loop()
         Serial.println(pirStatus);
   }
   
-  else
+  else if(pir1Status== "0" && pir2Status== "0")
   {
 
   
   pirStatus="0";
   Serial.print("pirStatus:");
   Serial.println(pirStatus);
-  lowIn3=millis();
-  if(millis()-lowIn3>pause2){
+  //lowIn3=millis();
+  //if(millis()-lowIn3>pause2){
   
   client.publish("/relay/0/set","0");
   Serial.print("Published data to turn off light");
-  }}}
+  //}
+  }}
   
 
 
@@ -347,7 +348,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
       Serial.println("Resetting Device.........");
        ESP.restart();
       }}}}// End of callback function
-
 
 
 
