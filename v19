@@ -156,7 +156,7 @@ else{
 
     if(Version==1)
     {
-      Serial.println("Firmware v17.0");
+      Serial.println("Firmware v19.0");
       Version++;
     }
     
